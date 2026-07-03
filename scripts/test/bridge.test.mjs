@@ -62,6 +62,21 @@ test('guard rejects a forged author (non-zero exit, allowed:false)', () => {
   assert.equal(r.json.allowed, false);
 });
 
+test('spawn is idempotent — an already-spawned thread returns its session, no duplicate', () => {
+  const env = sandbox();
+  fs.writeFileSync(
+    env.statePath,
+    JSON.stringify({ threads: { t1: { sessionId: 'existing-sid', status: 'active' } }, lastSeenTs: '0' }),
+  );
+  const r = run(env, [
+    'spawn', '--thread', 't1', '--cwd', env.baseRepo,
+    '--prompt', 'do it again', '--author', 'UC74Z40NN', '--channel', 'DC793D3D3',
+  ]);
+  assert.equal(r.code, 0);
+  assert.equal(r.json.skipped, true);
+  assert.equal(r.json.sessionId, 'existing-sid');
+});
+
 test('spawn is refused before running claude when the gate fails', () => {
   const env = sandbox();
   const r = run(env, [

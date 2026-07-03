@@ -156,6 +156,14 @@ async function main() {
       const gate = checkGate({ author: flags.author, channel: flags.channel }, config);
       if (!gate.allowed) { out(gate); process.exit(3); }
 
+      // Idempotent per thread: if the orchestrator re-processes the same @cc message, don't
+      // mint a second session — return the one already bound to this thread. (--force overrides.)
+      const already = loadState(STATE_PATH).threads[flags.thread];
+      if (already?.sessionId && already.status === 'active' && !flags.force) {
+        out({ skipped: true, reason: 'already-spawned', sessionId: already.sessionId, thread: flags.thread });
+        break;
+      }
+
       const sessionId = flags.session || crypto.randomUUID();
       const cwd = flags.cwd;
       const model = flags.model || config.defaultModel;

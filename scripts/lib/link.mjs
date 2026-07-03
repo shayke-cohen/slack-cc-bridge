@@ -37,6 +37,10 @@ export function linkTranscript({ transcriptPath, listWorkspace, projectsRoot = D
   } catch {
     try { fs.symlinkSync(transcriptPath, dest); } catch { return null; }
   }
+  // Stamp mtime to now: the editor lists by mtime, and its live watcher can miss a hardlink
+  // create (shared inode/mtime). A fresh mtime sorts the new session to the top and lets any
+  // mtime-based rescan pick it up.
+  try { const now = new Date(); fs.utimesSync(dest, now, now); } catch { /* best effort */ }
   return dest;
 }
 

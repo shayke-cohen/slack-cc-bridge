@@ -44,6 +44,15 @@ test('linkTranscript is a no-op when the session already lives in the list works
   assert.equal(linkTranscript({ transcriptPath: selfSrc, listWorkspace: WS, projectsRoot }), null);
 });
 
+test('linkTranscript stamps the link mtime to ~now (so it sorts to the top / a scan catches it)', () => {
+  const { projectsRoot, transcriptPath } = setup();
+  const old = new Date(Date.now() - 3600_000);
+  fs.utimesSync(transcriptPath, old, old); // make the source look stale
+  const dest = linkTranscript({ transcriptPath, listWorkspace: WS, projectsRoot });
+  const ageMs = Date.now() - fs.statSync(dest).mtime.getTime();
+  assert.ok(ageMs >= 0 && ageMs < 10_000, `expected a fresh mtime, got age ${ageMs}ms`);
+});
+
 test('linkTranscript returns null when inputs are missing', () => {
   const { projectsRoot, transcriptPath } = setup();
   assert.equal(linkTranscript({ transcriptPath: null, listWorkspace: WS, projectsRoot }), null);
