@@ -1,0 +1,12 @@
+# Your personal config (channel/author + local paths). Copy config.example.json → config.json.
+config.json
+
+# Machine-local runtime — regenerated at run time, never reuse across machines
+data/
+
+# Node
+node_modules/
+
+# OS cruft
+.DS_Store
+*.log

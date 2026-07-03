@@ -1,0 +1,15 @@
+{
+  "channel": "",
+  "author": "",
+  "trigger": "@cc",
+  "defaultModel": "claude-opus-4-8",
+  "baseRepo": "",
+  "baseRef": "HEAD",
+  "listWorkspace": "",
+  "worktreeRoot": "",
+  "pollSeconds": 45,
+  "idlePollSeconds": 180,
+  "maxActiveSessions": 8,
+  "coalesceReplies": true,
+  "threadTtlHours": 24
+}

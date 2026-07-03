@@ -1,0 +1,10 @@
+{
+  "name": "slack-cc-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Deterministic plumbing for the /slack-cc-bridge skill: spawn/resume headless claude sessions, tail transcripts, manage thread<->session state, and gate on self-authored Slack messages.",
+  "scripts": {
+    "test": "node --test"
+  }
+}
