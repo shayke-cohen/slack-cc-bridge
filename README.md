@@ -29,6 +29,11 @@ cp ~/.claude/skills/slack-cc-bridge/config.example.json ~/.claude/skills/slack-c
 No build step — `bridge.mjs` has zero dependencies. `config.json` is git-ignored (it holds
 your Slack IDs + local paths); only `config.example.json` is tracked.
 
+**Codex** uses the same skill format — clone into `~/.codex/skills/slack-cc-bridge/` (or symlink
+the Claude copy: `ln -s ~/.claude/skills/slack-cc-bridge ~/.codex/skills/slack-cc-bridge`). It's
+exposed as `/slack-cc-bridge` there via `user-invocable: true`. See **`AGENTS.md`** for the full
+cross-agent install matrix and portability notes.
+
 ## Setup — instructions for the installing agent
 
 `config.json` starts empty. Configure it for **this** user before the first run, then verify:

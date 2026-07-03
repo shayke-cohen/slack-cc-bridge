@@ -1,6 +1,7 @@
 ---
 name: slack-cc-bridge
 description: Use when the user asks to start/run the Slack bridge or orchestrator, monitor their Slack self-DM for tasks, or have Slack messages spawn Claude Code sessions they can continue in VS Code. Triggers: "run the slack bridge", "watch my slack and act on it", "turn my slack messages into claude sessions".
+user-invocable: true
 ---
 
 # Slack ↔ Claude Code bridge
@@ -22,8 +23,8 @@ call the MCP, hand the raw poll to `bridge classify`, then act on the small list
 The real work happens inside the spawned sessions (default **Opus 4.8**).
 
 **Division of labor (don't cross it):**
-- **This skill owns Slack I/O** via the Webrix MCP (`mcp__Webrix__slack__*`) — the only place the MCP is reachable.
-- **`scripts/bridge.mjs` owns everything deterministic** — the self-only gate, the `@cc` trigger, dedup cursors, worktrees, spawning/resuming `claude`, transcript tailing. Call it via Bash; it prints one JSON object per call.
+- **This skill owns Slack I/O** via the host's Slack MCP (this environment: `mcp__Webrix__slack__*`; on Codex or another host, use its equivalent Slack MCP tools — `get_channel_history`, `get_thread_replies`, `reply_to_thread`, `post_message`, `add_reaction`) — the only place the MCP is reachable.
+- **`scripts/bridge.mjs` owns everything deterministic** — the self-only gate, the `@cc` trigger, dedup cursors, worktrees, spawning/resuming `claude`, transcript tailing. Call it via Bash; it prints one JSON object per call. It's a zero-dependency Node CLI and host-agnostic (works under Claude Code, Codex, or a plain shell).
 
 `SKILL="$HOME/.claude/skills/slack-cc-bridge"` · `BRIDGE="node \"$SKILL/scripts/bridge.mjs\""` · config in `$SKILL/config.json`.
 
