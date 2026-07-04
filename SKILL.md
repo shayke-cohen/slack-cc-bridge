@@ -43,20 +43,20 @@ that fails the gate — or a top-level message without the `@cc` trigger — is 
 
 Keep the orchestrator's own reasoning minimal — let `classify` decide what's actionable.
 
-0. **Resolve config once:** `bridge config-get` → take `CHANNEL=.channel` and `AUTHOR=.author`. Use those below — never hardcode IDs.
-1. **Read cursors:** `bridge state-get` → `lastSeenTs` + the active threads.
-2. **Fetch (MCP):**
-   - `mcp__Webrix__slack__get_channel_history(<CHANNEL>, oldest=<lastSeenTs>)` → channel messages.
-   - For each active thread: `mcp__Webrix__slack__get_thread_replies(<CHANNEL>, <threadTs>)` → replies.
-3. **Classify (deterministic):** pipe `{"channel":[...],"threads":{"<ts>":[...]}}` to `bridge classify`
-   → `{ newTasks:[{thread,text,model}], threadTurns:[{thread,ts,text}], maxTs }`.
+0. **Resolve config once:** `bridge config-get` → `AUTHOR=.author` and the monitored set `CHANNELS = .channels` (plus `.channel`). **Private channels are fine** — the MCP acts as you, so it reads/posts any channel you're a member of. **Run steps 2–6 for each `<CHANNEL>` in `CHANNELS`.**
+1. **Read cursors:** `bridge state-get` → `lastSeen` (per-channel `{channel: ts}`) + active threads (each carries its own `channel`).
+2. **Fetch (MCP)** — for the current `<CHANNEL>`:
+   - `mcp__…__slack__get_channel_history(<CHANNEL>, oldest=lastSeen[<CHANNEL>] || 0)` → channel messages.
+   - For each active thread with `channel === <CHANNEL>`: `mcp__…__slack__get_thread_replies(<CHANNEL>, <threadTs>)` → replies.
+3. **Classify (deterministic):** pipe `{"channelId":"<CHANNEL>","messages":[...],"threads":{"<ts>":[...]}}` to `bridge classify`
+   → `{ newTasks:[{channel,thread,text,model}], threadTurns:[{channel,thread,ts,text}], maxTs }`.
 4. **New tasks** (respect `config.maxActiveSessions` — if already at cap, leave them for a later tick):
    - React 👀 (`add_reaction eyes`) on the message = picked up / working. (No ⏳ — it can't be removed and would linger.)
    - `bridge worktree-add --thread <thread>` → `bridge spawn --thread <thread> --cwd <path> --model <model> --author <AUTHOR> --channel <CHANNEL> --prompt "<text>"`.
    - `reply_to_thread` with the spawn's **`slackText`** (Slack-formatted — NOT raw `resultText`), prefixed with `<@AUTHOR>`. Add the terminal reaction: ✅ (`white_check_mark`) done, or ❓ (`question`) if it needs input, or ❌ (`x`) on error. Then **notify** (see Formatting & notifications).
 5. **Thread turns:** react 👀 on the latest reply → single-active-driver check (**skipped when `config.allowConcurrentResume` is true**) → `bridge resume --thread <thread> --replyTs <ts> --author <AUTHOR> --channel <CHANNEL> --prompt "<text>"` → `reply_to_thread` its **`slackText`** (prefixed `<@AUTHOR>`) → add the terminal ✅ (or ❓/❌) → **notify** (see Formatting & notifications). On `{skipped:true,reason:"ide-active"}`, post "you're driving this in VS Code — I'll mirror" and don't resume. (`classify` already **coalesces** several quick replies into one turn — one `resume`, not many — so just act on each `threadTurns` entry as-is.)
 6. **Mirror manual VS Code turns:** for each active thread, `bridge tail --thread <thread>` → post the returned **`slackTexts`** (prefixed `<@AUTHOR>`). (Cursors auto-advance, so `tail` only ever emits turns the bridge didn't produce.)
-7. **Advance + reschedule:** `bridge set-last-seen --ts <maxTs>`. Then `ScheduleWakeup`: `config.pollSeconds` (~45s) if this tick did anything, else `config.idlePollSeconds` (~180s) to stay cheap while idle.
+7. **Advance + reschedule:** `bridge set-last-seen --channel <CHANNEL> --ts <maxTs>` (per channel). After all channels, `ScheduleWakeup`: `config.pollSeconds` (~45s) if this tick did anything, else `config.idlePollSeconds` (~180s) to stay cheap while idle.
 8. **Housekeeping:** run `bridge prune` (auto-closes threads idle past `threadTtlHours`, drops ancient ones — keeps state + polling bounded). **Close** a thread the moment Shayke reacts 🏁 or says "done"/"close" in it → `bridge close --thread <ts>` (the loop stops following it; a fresh `@cc` always starts a new one).
 
 ## Noise policy
@@ -83,7 +83,7 @@ Keep the orchestrator's own reasoning minimal — let `classify` decide what's a
 
 Everything is set in **`config.json`** — nothing is baked into the code or this doc. Change a
 value there and the skill follows it (it reads the resolved values via `bridge config-get`).
-Keys: `channel`, `author`, `trigger`, `defaultModel`, `baseRepo`, `baseRef`, `listWorkspace`,
+Keys: `channel`, `channels` (extra monitored channels — private ok), `author`, `trigger`, `defaultModel`, `baseRepo`, `baseRef`, `listWorkspace`,
 `worktreeRoot`, `pollSeconds`, `idlePollSeconds`, `maxActiveSessions`, `coalesceReplies`, `threadTtlHours`,
 `allowConcurrentResume` (resume even when the session is open in VS Code — JSONL is line-safe, so only risks divergent context),
 `ideActiveWindowSeconds` (how recently a VS Code session must have been touched to count as "live"; default 120).
@@ -118,7 +118,7 @@ whole pipeline stays consistent. This is how one install serves a different user
 | `prune [--maxAgeHours N]` | auto-close idle threads, drop ancient ones |
 | `guard --author U --channel C` | exit 0 iff a self message |
 
-Run `cd "$SKILL/scripts" && node --test` to verify the CLI (87 unit/integration tests).
+Run `cd "$SKILL/scripts" && node --test` to verify the CLI (90 unit/integration tests).
 
 ## Common mistakes
 

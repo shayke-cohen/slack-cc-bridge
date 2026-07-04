@@ -10,7 +10,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const DEFAULT_STATE = () => ({ threads: {}, lastSeenTs: '0' });
+// `lastSeen` is the per-channel poll cursor { [channelId]: ts }. `lastSeenTs` is kept for
+// back-compat with single-channel state.
+const DEFAULT_STATE = () => ({ threads: {}, lastSeen: {}, lastSeenTs: '0' });
 
 /** @param {string} filePath */
 export function loadState(filePath) {
@@ -18,6 +20,7 @@ export function loadState(filePath) {
     const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
     return {
       threads: parsed.threads ?? {},
+      lastSeen: parsed.lastSeen ?? {},
       lastSeenTs: parsed.lastSeenTs ?? '0',
     };
   } catch {

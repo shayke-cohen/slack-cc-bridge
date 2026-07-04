@@ -8,6 +8,19 @@
  * @param {{author: string, channel: string}} config
  * @returns {{allowed: boolean, reason: string}}
  */
+/**
+ * The set of monitored channels: `config.channels` (array) plus `config.channel` (singular,
+ * back-compat). Any channel the user can see — including private ones — is fine, since the
+ * Slack MCP acts as the user.
+ * @param {{channel?: string, channels?: string[]}} config
+ * @returns {string[]}
+ */
+export function allowedChannels(config) {
+  const list = Array.isArray(config?.channels) ? config.channels.filter(Boolean) : [];
+  if (config?.channel && !list.includes(config.channel)) list.unshift(config.channel);
+  return list;
+}
+
 export function checkGate(msg, config) {
   const { author, channel, botId } = msg ?? {};
 
@@ -17,8 +30,8 @@ export function checkGate(msg, config) {
   if (!author || !channel) {
     return { allowed: false, reason: 'blocked: missing author or channel' };
   }
-  if (channel !== config.channel) {
-    return { allowed: false, reason: `blocked: channel ${channel} is not the monitored channel` };
+  if (!allowedChannels(config).includes(channel)) {
+    return { allowed: false, reason: `blocked: channel ${channel} is not a monitored channel` };
   }
   if (author !== config.author) {
     return { allowed: false, reason: `blocked: author ${author} is not the allowed self user` };

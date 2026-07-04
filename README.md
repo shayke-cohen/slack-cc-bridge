@@ -13,7 +13,7 @@ back into the thread.
 - **`scripts/bridge.mjs`** (+ `lib/`) — dependency-free Node CLI for the deterministic
   plumbing: `classify` (self-only gate + `@cc` trigger + dedup), git worktrees,
   spawn/resume headless `claude`, transcript tailing, the thread↔session state map,
-  and hardlinking sessions into the workspace list. 87 `node:test` tests.
+  and hardlinking sessions into the workspace list. 90 `node:test` tests.
 
 Division of labor: **Slack = skill (needs the session-only MCP); everything else = the CLI.**
 
@@ -53,7 +53,7 @@ cross-agent install matrix and portability notes.
 4. **Verify.**
    ```sh
    node ~/.claude/skills/slack-cc-bridge/scripts/bridge.mjs doctor   # config sanity checklist
-   cd ~/.claude/skills/slack-cc-bridge/scripts && node --test        # 87 tests
+   cd ~/.claude/skills/slack-cc-bridge/scripts && node --test        # 90 tests
    ```
    Then a live Slack round-trip: post a test message to `channel` and read it back via the MCP.
 
@@ -71,7 +71,7 @@ Then type `@cc <task>` in the monitored Slack self-DM. `@cc(sonnet) <task>` over
 
 | key | meaning |
 |---|---|
-| `channel` / `author` | the self-DM channel + your Slack user id — the ONLY source it acts on |
+| `channel` / `channels` / `author` | monitored channel(s) — self-DM + any **private** channels you're in — and your Slack user id; the only source it acts on |
 | `trigger` | new-session prefix (`@cc`) |
 | `defaultModel` | model for spawned sessions (`claude-opus-4-8`) |
 | `baseRepo` / `baseRef` | repo each per-thread worktree is cut from |

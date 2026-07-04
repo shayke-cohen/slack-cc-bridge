@@ -13,7 +13,7 @@ function tmpStatePath() {
 test('loadState returns a default shape when the file is missing', () => {
   const p = tmpStatePath();
   const s = loadState(p);
-  assert.deepEqual(s, { threads: {}, lastSeenTs: '0' });
+  assert.deepEqual(s, { threads: {}, lastSeen: {}, lastSeenTs: '0' });
 });
 
 test('saveState then loadState round-trips a thread entry', () => {
@@ -30,7 +30,7 @@ test('saveState then loadState round-trips a thread entry', () => {
 });
 
 test('upsertThread merges patches without dropping prior fields', () => {
-  const s = { threads: {}, lastSeenTs: '0' };
+  const s = { threads: {}, lastSeen: {}, lastSeenTs: '0' };
   upsertThread(s, 't1', { sessionId: 'abc', offset: 0 });
   const entry = upsertThread(s, 't1', { offset: 42, status: 'active' });
   assert.equal(entry.sessionId, 'abc');
@@ -40,7 +40,7 @@ test('upsertThread merges patches without dropping prior fields', () => {
 
 test('saveState writes atomically and leaves no .tmp files behind', () => {
   const p = tmpStatePath();
-  saveState(p, { threads: {}, lastSeenTs: '0' });
+  saveState(p, { threads: {}, lastSeen: {}, lastSeenTs: '0' });
   const leftover = fs.readdirSync(path.dirname(p)).filter((f) => f.includes('.tmp'));
   assert.deepEqual(leftover, []);
 });
@@ -49,5 +49,5 @@ test('loadState returns the default shape on corrupt JSON', () => {
   const p = tmpStatePath();
   fs.mkdirSync(path.dirname(p), { recursive: true });
   fs.writeFileSync(p, '{ not valid json');
-  assert.deepEqual(loadState(p), { threads: {}, lastSeenTs: '0' });
+  assert.deepEqual(loadState(p), { threads: {}, lastSeen: {}, lastSeenTs: '0' });
 });

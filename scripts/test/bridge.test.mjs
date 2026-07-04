@@ -175,8 +175,8 @@ test('classify reads a Slack poll from stdin and returns deduped, gated actions'
     input,
   });
   const j = JSON.parse(out.toString());
-  assert.deepEqual(j.newTasks, [{ thread: '201.000000', text: 'build a thing', model: 'claude-opus-4-8' }]);
-  assert.deepEqual(j.threadTurns, [{ thread: '200.000000', ts: '203.000000', text: 'and add tests' }]);
+  assert.deepEqual(j.newTasks, [{ channel: 'DC793D3D3', thread: '201.000000', text: 'build a thing', model: 'claude-opus-4-8' }]);
+  assert.deepEqual(j.threadTurns, [{ channel: 'DC793D3D3', thread: '200.000000', ts: '203.000000', text: 'and add tests' }]);
   assert.equal(j.maxTs, '202.000000');
 });
 
@@ -268,10 +268,10 @@ test('prune removes very-stale threads and keeps fresh ones', () => {
   assert.ok(state.threads[freshTs]); // fresh kept
 });
 
-test('set-last-seen persists the cursor and state-get reads it back', () => {
+test('set-last-seen persists a per-channel cursor and state-get reads it back', () => {
   const env = sandbox();
-  const set = run(env, ['set-last-seen', '--ts', '1783055616.871749']);
+  const set = run(env, ['set-last-seen', '--channel', 'C_X', '--ts', '1783055616.871749']);
   assert.equal(set.code, 0);
   const get = run(env, ['state-get']);
-  assert.equal(get.json.lastSeenTs, '1783055616.871749');
+  assert.equal(get.json.lastSeen.C_X, '1783055616.871749');
 });

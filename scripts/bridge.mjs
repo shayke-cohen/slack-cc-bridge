@@ -180,6 +180,7 @@ async function main() {
       const state = loadState(STATE_PATH);
       upsertThread(state, flags.thread, {
         sessionId: finalId, cwd, worktree: flags.worktree || cwd, model,
+        channel: flags.channel, // which channel this thread lives in (for replies/polling)
         transcriptPath, linkPath, offset, status: 'active', driver: 'bridge',
         // start the reply cursor at the root so only replies AFTER the @cc message count
         lastReplyTs: flags.thread,
@@ -266,9 +267,12 @@ async function main() {
 
     case 'set-last-seen': {
       const state = loadState(STATE_PATH);
-      state.lastSeenTs = String(flags.ts ?? state.lastSeenTs);
+      const ch = flags.channel || config.channel || (config.channels && config.channels[0]);
+      const ts = String(flags.ts ?? '');
+      state.lastSeen = state.lastSeen || {};
+      if (ch) state.lastSeen[ch] = ts; else state.lastSeenTs = ts;
       saveState(STATE_PATH, state);
-      out({ ok: true, lastSeenTs: state.lastSeenTs });
+      out({ ok: true, channel: ch, ts });
       break;
     }
 

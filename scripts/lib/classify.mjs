@@ -25,22 +25,28 @@ const tsGt = (a, b) => tsKey(a) > tsKey(b);
  * @returns {{newTasks: object[], threadTurns: object[], maxTs: string}}
  */
 export function classify(input, state, config) {
-  const channel = input.channel ?? [];
+  // One channel per call. `channelId` names it; `messages`/`threads` are that channel's poll.
+  // (Back-compat: old callers passed the messages array as `input.channel` for the single
+  // `config.channel`, and a flat `state.lastSeenTs`.)
+  const channelId = input.channelId ?? config.channel;
+  const messages = input.messages ?? input.channel ?? [];
   const threads = input.threads ?? {};
-  const newTasks = [];
-  let maxTs = state.lastSeenTs ?? '0';
+  const lastSeen = state.lastSeen?.[channelId] ?? state.lastSeenTs ?? '0';
 
-  for (const msg of channel) {
+  const newTasks = [];
+  let maxTs = lastSeen;
+
+  for (const msg of messages) {
     if (tsGt(msg.ts, maxTs)) maxTs = msg.ts;
 
     const topLevel = !msg.thread_ts || msg.thread_ts === msg.ts;
     if (!topLevel) continue;
-    if (!tsGt(msg.ts, state.lastSeenTs ?? '0')) continue;
-    if (!checkGate({ author: msg.user, channel: config.channel, botId: msg.bot_id }, config).allowed) continue;
+    if (!tsGt(msg.ts, lastSeen)) continue;
+    if (!checkGate({ author: msg.user, channel: channelId, botId: msg.bot_id }, config).allowed) continue;
 
     const parsed = parseTrigger(msg.text ?? '', config);
     if (!parsed.isTask) continue;
-    newTasks.push({ thread: msg.ts, text: parsed.task, model: parsed.model });
+    newTasks.push({ channel: channelId, thread: msg.ts, text: parsed.task, model: parsed.model });
   }
 
   const coalesce = config.coalesceReplies !== false;
@@ -48,22 +54,22 @@ export function classify(input, state, config) {
   for (const [threadTs, replies] of Object.entries(threads)) {
     const entry = state.threads?.[threadTs];
     if (!entry || entry.status === 'closed') continue; // only follow active threads
+    if (entry.channel && entry.channel !== channelId) continue; // belongs to another channel
     const cursor = entry.lastReplyTs ?? threadTs;
     const turns = [];
     for (const r of replies ?? []) {
       if (r.ts === threadTs) continue; // the root message
       if (!tsGt(r.ts, cursor)) continue;
-      if (!checkGate({ author: r.user, channel: config.channel, botId: r.bot_id }, config).allowed) continue;
-      turns.push({ thread: threadTs, ts: r.ts, text: r.text ?? '' });
+      if (!checkGate({ author: r.user, channel: channelId, botId: r.bot_id }, config).allowed) continue;
+      turns.push({ channel: channelId, thread: threadTs, ts: r.ts, text: r.text ?? '' });
     }
     if (!turns.length) continue;
     if (coalesce) {
-      // merge rapid replies → one resume, cursor at the last reply
-      threadTurns.push({ thread: threadTs, ts: turns[turns.length - 1].ts, text: turns.map((t) => t.text).join('\n') });
+      threadTurns.push({ channel: channelId, thread: threadTs, ts: turns[turns.length - 1].ts, text: turns.map((t) => t.text).join('\n') });
     } else {
       threadTurns.push(...turns);
     }
   }
 
-  return { newTasks, threadTurns, maxTs };
+  return { channel: channelId, newTasks, threadTurns, maxTs };
 }
