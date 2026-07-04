@@ -3,7 +3,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { projectHash, findTranscript } from '../lib/paths.mjs';
+import { projectHash, findTranscript, resumeCommand } from '../lib/paths.mjs';
+
+test('resumeCommand builds a copy-pasteable cd + claude --resume line (quoted cwd)', () => {
+  assert.equal(
+    resumeCommand('/Users/shayco/wt space', 'abc-123'),
+    'cd "/Users/shayco/wt space" && claude --resume abc-123',
+  );
+});
 
 test('projectHash mirrors how Claude Code names project dirs', () => {
   assert.equal(projectHash('/private/tmp'), '-private-tmp');

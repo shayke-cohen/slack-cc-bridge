@@ -13,7 +13,7 @@ back into the thread.
 - **`scripts/bridge.mjs`** (+ `lib/`) — dependency-free Node CLI for the deterministic
   plumbing: `classify` (self-only gate + `@cc` trigger + dedup), git worktrees,
   spawn/resume headless `claude`, transcript tailing, the thread↔session state map,
-  and hardlinking sessions into the workspace list. 90 `node:test` tests.
+  and hardlinking sessions into the workspace list. 92 `node:test` tests.
 
 Division of labor: **Slack = skill (needs the session-only MCP); everything else = the CLI.**
 
@@ -53,7 +53,7 @@ cross-agent install matrix and portability notes.
 4. **Verify.**
    ```sh
    node ~/.claude/skills/slack-cc-bridge/scripts/bridge.mjs doctor   # config sanity checklist
-   cd ~/.claude/skills/slack-cc-bridge/scripts && node --test        # 90 tests
+   cd ~/.claude/skills/slack-cc-bridge/scripts && node --test        # 92 tests
    ```
    Then a live Slack round-trip: post a test message to `channel` and read it back via the MCP.
 

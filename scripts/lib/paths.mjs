@@ -17,6 +17,11 @@ export function projectHash(cwd) {
   return cwd.replace(/[^a-zA-Z0-9]/g, '-');
 }
 
+/** Copy-pasteable CLI to take a session over yourself (from the worktree it runs in). */
+export function resumeCommand(cwd, sessionId) {
+  return `cd "${cwd}" && claude --resume ${sessionId}`;
+}
+
 /**
  * @param {string} sessionId
  * @param {{cwd?: string, projectsRoot?: string}} [o]

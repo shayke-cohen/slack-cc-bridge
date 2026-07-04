@@ -14,5 +14,7 @@
   "coalesceReplies": true,
   "threadTtlHours": 24,
   "allowConcurrentResume": false,
-  "ideActiveWindowSeconds": 120
+  "ideActiveWindowSeconds": 120,
+  "messagePrefix": "[claude]",
+  "sessionTimeoutMinutes": 30
 }

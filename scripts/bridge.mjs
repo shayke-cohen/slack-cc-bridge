@@ -31,7 +31,7 @@ import { loadState, saveState, upsertThread } from './lib/state.mjs';
 import { tailAssistantText } from './lib/tail.mjs';
 import { runClaude } from './lib/claude.mjs';
 import { worktreeAdd, worktreeRemove } from './lib/worktree.mjs';
-import { findTranscript } from './lib/paths.mjs';
+import { findTranscript, resumeCommand } from './lib/paths.mjs';
 import { linkTranscript, unlinkTranscript } from './lib/link.mjs';
 import { ideActiveSession } from './lib/driver.mjs';
 import { runDoctor } from './lib/doctor.mjs';
@@ -169,7 +169,8 @@ async function main() {
       const sessionId = flags.session || crypto.randomUUID();
       const cwd = flags.cwd;
       const model = flags.model || config.defaultModel;
-      const res = await runClaude({ mode: 'spawn', sessionId, prompt: String(flags.prompt ?? ''), cwd, model });
+      const timeoutMs = (config.sessionTimeoutMinutes ?? 30) * 60_000;
+      const res = await runClaude({ mode: 'spawn', sessionId, prompt: String(flags.prompt ?? ''), cwd, model, timeoutMs });
 
       const finalId = res.sessionId || sessionId;
       const { transcriptPath, offset } = transcriptInfo(finalId, cwd);
@@ -187,7 +188,7 @@ async function main() {
       });
       saveState(STATE_PATH, state);
 
-      out({ ...res, sessionId: finalId, transcriptPath, slackText: mdToSlack(res.resultText) });
+      out({ ...res, sessionId: finalId, transcriptPath, slackText: mdToSlack(res.resultText), resumeCommand: resumeCommand(cwd, finalId) });
       process.exit(res.success ? 0 : 1);
       break;
     }
@@ -209,7 +210,8 @@ async function main() {
       }
 
       const model = flags.model || entry.model || config.defaultModel;
-      const res = await runClaude({ mode: 'resume', sessionId: entry.sessionId, prompt: String(flags.prompt ?? ''), cwd: entry.cwd, model });
+      const timeoutMs = (config.sessionTimeoutMinutes ?? 30) * 60_000;
+      const res = await runClaude({ mode: 'resume', sessionId: entry.sessionId, prompt: String(flags.prompt ?? ''), cwd: entry.cwd, model, timeoutMs });
       const { transcriptPath, offset } = transcriptInfo(entry.sessionId, entry.cwd);
       upsertThread(state, flags.thread, {
         transcriptPath: transcriptPath || entry.transcriptPath, offset,
@@ -218,7 +220,7 @@ async function main() {
       });
       saveState(STATE_PATH, state);
 
-      out({ ...res, sessionId: entry.sessionId, transcriptPath: transcriptPath || entry.transcriptPath, slackText: mdToSlack(res.resultText) });
+      out({ ...res, sessionId: entry.sessionId, transcriptPath: transcriptPath || entry.transcriptPath, slackText: mdToSlack(res.resultText), resumeCommand: resumeCommand(entry.cwd, entry.sessionId) });
       process.exit(res.success ? 0 : 1);
       break;
     }

@@ -99,6 +99,21 @@ test('runClaude reports failure on a non-zero exit', async () => {
   assert.equal(res.exitCode, 1);
 });
 
+test('runClaude enforces the timeout (exitCode 124) when the session runs too long', async () => {
+  // a child that never closes → the timeout must fire
+  const spawnFn = () => {
+    const child = new EventEmitter();
+    child.stdin = { write() {}, end() {} };
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    child.kill = () => {};
+    return child;
+  };
+  const res = await runClaude({ mode: 'spawn', sessionId: 'x', prompt: 'hi', cwd: '/tmp', spawnFn, timeoutMs: 25 });
+  assert.equal(res.success, false);
+  assert.equal(res.exitCode, 124);
+});
+
 test('runClaude forwards the model to the CLI args', async () => {
   const { spawnFn, children } = makeFakeSpawn([
     { type: 'result', subtype: 'success', result: 'ok', duration_ms: 1 },
