@@ -43,7 +43,7 @@ that fails the gate — or a top-level message without the `@cc` trigger — is 
 
 Keep the orchestrator's own reasoning minimal — let `classify` decide what's actionable.
 
-0. **Resolve config once:** `bridge config-get` → `AUTHOR=.author`, `PREFIX=.messagePrefix` (e.g. `[claude]`), and the monitored set `CHANNELS = .channels` (plus `.channel`). **Private channels are fine** — the MCP acts as you, so it reads/posts any channel you're a member of. **Run steps 2–6 for each `<CHANNEL>` in `CHANNELS`.** Every message you post is prefixed **`<PREFIX> <@AUTHOR> `** so it's clearly the bridge.
+0. **Resolve config once:** `bridge config-get` → `AUTHOR=.author`, `PREFIX=.messagePrefix` (e.g. `[claude]`), and the monitored set `CHANNELS = .channels` (plus `.channel`). Add any channel the token can **read**: your DM(s) (`im:history`) and **public** channels you're in (`channels:history`). ⚠️ **Private channels need `groups:history`** on the Slack token — if it's missing, reads return `missing_scope` and the channel is silently un-monitorable (posting may still work via `groups:write`, but no `@cc` there is ever picked up); use a public or dedicated bot-token channel instead. **Run steps 2–6 for each `<CHANNEL>` in `CHANNELS`.** Every message you post is prefixed **`<PREFIX> <@AUTHOR> `** so it's clearly the bridge.
 1. **Read cursors:** `bridge state-get` → `lastSeen` (per-channel `{channel: ts}`) + active threads (each carries its own `channel`).
 2. **Fetch (MCP)** — for the current `<CHANNEL>`:
    - `mcp__…__slack__get_channel_history(<CHANNEL>, oldest=lastSeen[<CHANNEL>] || 0)` → channel messages.
@@ -70,7 +70,7 @@ Keep the orchestrator's own reasoning minimal — let `classify` decide what's a
 - **Post Slack-formatted text, never raw Markdown.** Slack ignores `**`/`##`/`[]()` — it uses mrkdwn (`*bold*`, `<url|text>`, `•`). `spawn`/`resume` already return **`slackText`** and `tail` returns **`slackTexts`** (converted). Post those. For any text YOU compose, pipe it through `bridge fmt` (stdin → `{slackText}`).
 - **Notify yourself.** The self-DM **can't badge you** — Slack posts come from *you*, and a self-mention does NOT change that (verified). So alert out-of-band, after each reply:
   - **Desk (macOS):** `bridge notify --title "cc: <short task>" --message "<done | needs input | error>"` → a native desktop alert (immediate; only where the orchestrator runs).
-  - **Mobile:** on ❓ needs-input / ❌ error, also set a Slack reminder via the MCP `add_reminder` (text `cc: <task> — reply ready`, time `in 1 minute`, user `<AUTHOR>`) → Slackbot pushes it to your phone. Skip it on routine ✅ to avoid spam.
+  - **Mobile:** on ❓ needs-input / ❌ error, also set a Slack reminder via the MCP `add_reminder` (text `cc: <task> — reply ready`, time `in 1 minute`, user `<AUTHOR>`) → Slackbot pushes it to your phone. Skip it on routine ✅. ⚠️ Needs **`reminders:write`** on the token — if absent it no-ops (this environment's token lacks it), so only the desktop alert fires until a token with `reminders:write` (or a bot-token channel) is used.
   - The only *native* unread-everywhere fix is pointing `config.channel` at a dedicated channel where a real **bot token** posts — a one-time Slack-app setup, out of scope here.
 
 ## Message syntax

@@ -71,7 +71,7 @@ Then type `@cc <task>` in the monitored Slack self-DM. `@cc(sonnet) <task>` over
 
 | key | meaning |
 |---|---|
-| `channel` / `channels` / `author` | monitored channel(s) — self-DM + any **private** channels you're in — and your Slack user id; the only source it acts on |
+| `channel` / `channels` / `author` | monitored channel(s) — your DM + public channels the token can read (`im:history`/`channels:history`); **private channels need `groups:history`** on the token — and your Slack user id; the only source it acts on |
 | `trigger` | new-session prefix (`@cc`) |
 | `defaultModel` | model for spawned sessions (`claude-opus-4-8`) |
 | `baseRepo` / `baseRef` | repo each per-thread worktree is cut from |
