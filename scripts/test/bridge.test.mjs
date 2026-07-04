@@ -123,6 +123,7 @@ test('tail returns new assistant end_turn text and advances the stored offset', 
   const r = run(env, ['tail', '--thread', 't9']);
   assert.equal(r.code, 0);
   assert.deepEqual(r.json.texts, ['all done']);
+  assert.deepEqual(r.json.slackTexts, ['all done']); // slack-formatted variant for posting
 
   const state = JSON.parse(fs.readFileSync(env.statePath, 'utf8'));
   assert.equal(state.threads.t9.offset, r.json.newOffset);
@@ -206,6 +207,16 @@ test('the gate honors an overridden author (env)', () => {
     } catch (e) { return e.status === 3; }
   })();
   assert.equal(denied, true);
+});
+
+test('fmt converts stdin Markdown to Slack mrkdwn', () => {
+  const env = sandbox();
+  const out = execFileSync('node', [BRIDGE, 'fmt'], {
+    env: { ...process.env, SCCB_CONFIG: env.configPath, SCCB_STATE: env.statePath },
+    input: '## Hi\n\n**bold** and [x](https://y.io)\n- one',
+  });
+  const j = JSON.parse(out.toString());
+  assert.equal(j.slackText, '*Hi*\n\n*bold* and <https://y.io|x>\n• one');
 });
 
 test('close marks a thread closed so the loop stops following it', () => {

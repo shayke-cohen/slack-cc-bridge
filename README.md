@@ -13,7 +13,7 @@ back into the thread.
 - **`scripts/bridge.mjs`** (+ `lib/`) — dependency-free Node CLI for the deterministic
   plumbing: `classify` (self-only gate + `@cc` trigger + dedup), git worktrees,
   spawn/resume headless `claude`, transcript tailing, the thread↔session state map,
-  and hardlinking sessions into the workspace list. 71 `node:test` tests.
+  and hardlinking sessions into the workspace list. 82 `node:test` tests.
 
 Division of labor: **Slack = skill (needs the session-only MCP); everything else = the CLI.**
 

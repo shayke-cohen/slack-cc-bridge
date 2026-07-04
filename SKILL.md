@@ -53,9 +53,9 @@ Keep the orchestrator's own reasoning minimal — let `classify` decide what's a
 4. **New tasks** (respect `config.maxActiveSessions` — if already at cap, leave them for a later tick):
    - React 👀 (`add_reaction eyes`) on the message = picked up / working. (No ⏳ — it can't be removed and would linger.)
    - `bridge worktree-add --thread <thread>` → `bridge spawn --thread <thread> --cwd <path> --model <model> --author <AUTHOR> --channel <CHANNEL> --prompt "<text>"`.
-   - `reply_to_thread` with the `resultText`; add the terminal reaction: ✅ (`white_check_mark`) done, or ❓ (`question`) if it needs input, or ❌ (`x`) on error.
-5. **Thread turns:** react 👀 on the latest reply → single-active-driver check → `bridge resume --thread <thread> --replyTs <ts> --author <AUTHOR> --channel <CHANNEL> --prompt "<text>"` → `reply_to_thread` result → add the terminal ✅ (or ❓/❌). On `{skipped:true,reason:"ide-active"}`, post "you're driving this in VS Code — I'll mirror" and don't resume. (`classify` already **coalesces** several quick replies into one turn — one `resume`, not many — so just act on each `threadTurns` entry as-is.)
-6. **Mirror manual VS Code turns:** for each active thread, `bridge tail --thread <thread>` → post any returned texts. (Cursors auto-advance, so `tail` only ever emits turns the bridge didn't produce.)
+   - `reply_to_thread` with the spawn's **`slackText`** (Slack-formatted — NOT raw `resultText`), prefixed with `<@AUTHOR>` so you get notified. Add the terminal reaction: ✅ (`white_check_mark`) done, or ❓ (`question`) if it needs input, or ❌ (`x`) on error.
+5. **Thread turns:** react 👀 on the latest reply → single-active-driver check → `bridge resume --thread <thread> --replyTs <ts> --author <AUTHOR> --channel <CHANNEL> --prompt "<text>"` → `reply_to_thread` its **`slackText`** (prefixed `<@AUTHOR>`) → add the terminal ✅ (or ❓/❌). On `{skipped:true,reason:"ide-active"}`, post "you're driving this in VS Code — I'll mirror" and don't resume. (`classify` already **coalesces** several quick replies into one turn — one `resume`, not many — so just act on each `threadTurns` entry as-is.)
+6. **Mirror manual VS Code turns:** for each active thread, `bridge tail --thread <thread>` → post the returned **`slackTexts`** (prefixed `<@AUTHOR>`). (Cursors auto-advance, so `tail` only ever emits turns the bridge didn't produce.)
 7. **Advance + reschedule:** `bridge set-last-seen --ts <maxTs>`. Then `ScheduleWakeup`: `config.pollSeconds` (~45s) if this tick did anything, else `config.idlePollSeconds` (~180s) to stay cheap while idle.
 8. **Housekeeping:** run `bridge prune` (auto-closes threads idle past `threadTtlHours`, drops ancient ones — keeps state + polling bounded). **Close** a thread the moment Shayke reacts 🏁 or says "done"/"close" in it → `bridge close --thread <ts>` (the loop stops following it; a fresh `@cc` always starts a new one).
 
@@ -64,6 +64,11 @@ Keep the orchestrator's own reasoning minimal — let `classify` decide what's a
 - **Status = reactions, not messages.** 👀 = picked up / working (add on receipt); then on finish add exactly one **terminal**: ✅ done · ❓ needs input · ❌ error. The Slack MCP is **add-only (no remove-reaction)**, so reactions are additive — the *terminal* emoji's presence means finished. Do **not** use ⏳: with no way to remove it, it lingers beside ✅ and falsely reads as "still working." Only post *text* for the result/answer, a question, or an error.
 - **Never post on an empty tick.** No "nothing new" chatter.
 - A failed spawn/resume posts its error **once**; no retry-spam.
+
+## Formatting & notifications
+
+- **Post Slack-formatted text, never raw Markdown.** Slack ignores `**`/`##`/`[]()` — it uses mrkdwn (`*bold*`, `<url|text>`, `•`). `spawn`/`resume` already return **`slackText`** and `tail` returns **`slackTexts`** (converted). Post those. For any text YOU compose, pipe it through `bridge fmt` (stdin → `{slackText}`).
+- **Notify yourself.** The monitored channel is your self-DM, so Slack doesn't badge messages "sent" to yourself. **Prefix every reply with `<@AUTHOR>`** — a self-mention breaks through as a notification. Still too quiet? Alternatives: add a Slack reminder on finish, or set `channel` to a dedicated channel / bot-DM that badges natively.
 
 ## Message syntax
 
@@ -94,6 +99,7 @@ whole pipeline stays consistent. This is how one install serves a different user
 | Command | Purpose |
 |---|---|
 | `config-get` | resolved config (config.json + `SCCB_*` overrides) — read `channel`/`author` here |
+| `fmt` (stdin=md) | convert Markdown → Slack mrkdwn → `{slackText}` |
 | `doctor` | validate config for a fresh install (channel/author set, baseRepo is a git repo, …) |
 | `state-get` | `lastSeenTs` + active threads (also tells you which threads to fetch replies for) |
 | `classify` (stdin=poll JSON) | gate + `@cc` + dedup → `{newTasks, threadTurns, maxTs}` |
@@ -106,7 +112,7 @@ whole pipeline stays consistent. This is how one install serves a different user
 | `prune [--maxAgeHours N]` | auto-close idle threads, drop ancient ones |
 | `guard --author U --channel C` | exit 0 iff a self message |
 
-Run `cd "$SKILL/scripts" && node --test` to verify the CLI (71 unit/integration tests).
+Run `cd "$SKILL/scripts" && node --test` to verify the CLI (82 unit/integration tests).
 
 ## Common mistakes
 

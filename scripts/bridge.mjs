@@ -35,6 +35,7 @@ import { findTranscript } from './lib/paths.mjs';
 import { linkTranscript, unlinkTranscript } from './lib/link.mjs';
 import { ideActiveSession } from './lib/driver.mjs';
 import { runDoctor } from './lib/doctor.mjs';
+import { mdToSlack } from './lib/slackfmt.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CONFIG_PATH = process.env.SCCB_CONFIG || path.join(HERE, '..', 'config.json');
@@ -184,7 +185,7 @@ async function main() {
       });
       saveState(STATE_PATH, state);
 
-      out({ ...res, sessionId: finalId, transcriptPath });
+      out({ ...res, sessionId: finalId, transcriptPath, slackText: mdToSlack(res.resultText) });
       process.exit(res.success ? 0 : 1);
       break;
     }
@@ -212,7 +213,7 @@ async function main() {
       });
       saveState(STATE_PATH, state);
 
-      out({ ...res, sessionId: entry.sessionId, transcriptPath: transcriptPath || entry.transcriptPath });
+      out({ ...res, sessionId: entry.sessionId, transcriptPath: transcriptPath || entry.transcriptPath, slackText: mdToSlack(res.resultText) });
       process.exit(res.success ? 0 : 1);
       break;
     }
@@ -220,13 +221,19 @@ async function main() {
     case 'tail': {
       const state = loadState(STATE_PATH);
       const entry = state.threads[flags.thread];
-      if (!entry) { out({ texts: [], newOffset: 0 }); break; }
+      if (!entry) { out({ texts: [], newOffset: 0, slackTexts: [] }); break; }
 
       const transcriptPath = entry.transcriptPath || findTranscript(entry.sessionId, { cwd: entry.cwd, projectsRoot: PROJECTS_ROOT });
       const { texts, newOffset } = tailAssistantText(transcriptPath, entry.offset || 0);
       upsertThread(state, flags.thread, { transcriptPath, offset: newOffset });
       saveState(STATE_PATH, state);
-      out({ texts, newOffset });
+      out({ texts, newOffset, slackTexts: texts.map(mdToSlack) });
+      break;
+    }
+
+    case 'fmt': {
+      // Convert Markdown (stdin) → Slack mrkdwn for posting. Emits {slackText}.
+      out({ slackText: mdToSlack(await readStdin()) });
       break;
     }
 
