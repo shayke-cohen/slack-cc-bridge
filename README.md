@@ -53,7 +53,7 @@ cross-agent install matrix and portability notes.
 4. **Verify.**
    ```sh
    node ~/.claude/skills/slack-cc-bridge/scripts/bridge.mjs doctor   # config sanity checklist
-   cd ~/.claude/skills/slack-cc-bridge/scripts && node --test        # 71 tests
+   cd ~/.claude/skills/slack-cc-bridge/scripts && node --test        # 82 tests
    ```
    Then a live Slack round-trip: post a test message to `channel` and read it back via the MCP.
 
