@@ -36,6 +36,7 @@ import { linkTranscript, unlinkTranscript } from './lib/link.mjs';
 import { ideActiveSession } from './lib/driver.mjs';
 import { runDoctor } from './lib/doctor.mjs';
 import { mdToSlack } from './lib/slackfmt.mjs';
+import { notifyDesktop } from './lib/notify.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CONFIG_PATH = process.env.SCCB_CONFIG || path.join(HERE, '..', 'config.json');
@@ -234,6 +235,17 @@ async function main() {
     case 'fmt': {
       // Convert Markdown (stdin) → Slack mrkdwn for posting. Emits {slackText}.
       out({ slackText: mdToSlack(await readStdin()) });
+      break;
+    }
+
+    case 'notify': {
+      // Local desktop alert (the self-DM can't notify you). macOS only; no-op elsewhere.
+      const dispatched = notifyDesktop({
+        title: flags.title || 'slack-cc-bridge',
+        message: String(flags.message ?? ''),
+        sound: flags.sound !== 'false',
+      });
+      out({ ok: true, dispatched });
       break;
     }
 
