@@ -51,17 +51,17 @@ Keep the orchestrator's own reasoning minimal — let `classify` decide what's a
 3. **Classify (deterministic):** pipe `{"channel":[...],"threads":{"<ts>":[...]}}` to `bridge classify`
    → `{ newTasks:[{thread,text,model}], threadTurns:[{thread,ts,text}], maxTs }`.
 4. **New tasks** (respect `config.maxActiveSessions` — if already at cap, leave them for a later tick):
-   - React 👀 (`add_reaction eyes`) on the message, then react ⏳ (`hourglass_flowing_sand`).
+   - React 👀 (`add_reaction eyes`) on the message = picked up / working. (No ⏳ — it can't be removed and would linger.)
    - `bridge worktree-add --thread <thread>` → `bridge spawn --thread <thread> --cwd <path> --model <model> --author <AUTHOR> --channel <CHANNEL> --prompt "<text>"`.
-   - `reply_to_thread` with the `resultText`; react ✅ (`white_check_mark`). If it's asking for input, react ❓ (`question`) instead.
-5. **Thread turns:** react ⏳ on the latest reply → single-active-driver check → `bridge resume --thread <thread> --replyTs <ts> --author <AUTHOR> --channel <CHANNEL> --prompt "<text>"` → `reply_to_thread` result → react ✅. On `{skipped:true,reason:"ide-active"}`, post "you're driving this in VS Code — I'll mirror" and don't resume. (`classify` already **coalesces** several quick replies into one turn — one `resume`, not many — so just act on each `threadTurns` entry as-is.)
+   - `reply_to_thread` with the `resultText`; add the terminal reaction: ✅ (`white_check_mark`) done, or ❓ (`question`) if it needs input, or ❌ (`x`) on error.
+5. **Thread turns:** react 👀 on the latest reply → single-active-driver check → `bridge resume --thread <thread> --replyTs <ts> --author <AUTHOR> --channel <CHANNEL> --prompt "<text>"` → `reply_to_thread` result → add the terminal ✅ (or ❓/❌). On `{skipped:true,reason:"ide-active"}`, post "you're driving this in VS Code — I'll mirror" and don't resume. (`classify` already **coalesces** several quick replies into one turn — one `resume`, not many — so just act on each `threadTurns` entry as-is.)
 6. **Mirror manual VS Code turns:** for each active thread, `bridge tail --thread <thread>` → post any returned texts. (Cursors auto-advance, so `tail` only ever emits turns the bridge didn't produce.)
 7. **Advance + reschedule:** `bridge set-last-seen --ts <maxTs>`. Then `ScheduleWakeup`: `config.pollSeconds` (~45s) if this tick did anything, else `config.idlePollSeconds` (~180s) to stay cheap while idle.
 8. **Housekeeping:** run `bridge prune` (auto-closes threads idle past `threadTtlHours`, drops ancient ones — keeps state + polling bounded). **Close** a thread the moment Shayke reacts 🏁 or says "done"/"close" in it → `bridge close --thread <ts>` (the loop stops following it; a fresh `@cc` always starts a new one).
 
 ## Noise policy
 
-- **Status = reactions, not messages.** 👀 received · ⏳ working · ✅ done · ❓ needs input. Only post *text* for the session's result/answer, an explicit question, or an error.
+- **Status = reactions, not messages.** 👀 = picked up / working (add on receipt); then on finish add exactly one **terminal**: ✅ done · ❓ needs input · ❌ error. The Slack MCP is **add-only (no remove-reaction)**, so reactions are additive — the *terminal* emoji's presence means finished. Do **not** use ⏳: with no way to remove it, it lingers beside ✅ and falsely reads as "still working." Only post *text* for the result/answer, a question, or an error.
 - **Never post on an empty tick.** No "nothing new" chatter.
 - A failed spawn/resume posts its error **once**; no retry-spam.
 
