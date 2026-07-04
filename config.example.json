@@ -11,5 +11,7 @@
   "idlePollSeconds": 180,
   "maxActiveSessions": 8,
   "coalesceReplies": true,
-  "threadTtlHours": 24
+  "threadTtlHours": 24,
+  "allowConcurrentResume": false,
+  "ideActiveWindowSeconds": 120
 }

@@ -77,6 +77,25 @@ test('spawn is idempotent — an already-spawned thread returns its session, no 
   assert.equal(r.json.sessionId, 'existing-sid');
 });
 
+test('resume mirrors-only (skips, no claude) when the session is open in VS Code and the guard is on', () => {
+  const env = sandbox();
+  fs.writeFileSync(
+    env.statePath,
+    JSON.stringify({ threads: { t1: { sessionId: 'S-IDE', cwd: env.baseRepo, status: 'active' } }, lastSeenTs: '0' }),
+  );
+  const sessionsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sccb-ss-'));
+  fs.writeFileSync(path.join(sessionsDir, '999.json'), JSON.stringify({ sessionId: 'S-IDE', kind: 'interactive' }));
+
+  const out = execFileSync(
+    'node',
+    [BRIDGE, 'resume', '--thread', 't1', '--prompt', 'x', '--author', 'UC74Z40NN', '--channel', 'DC793D3D3'],
+    { env: { ...process.env, SCCB_CONFIG: env.configPath, SCCB_STATE: env.statePath, SCCB_SESSIONS_DIR: sessionsDir } },
+  );
+  const j = JSON.parse(out.toString());
+  assert.equal(j.skipped, true);
+  assert.equal(j.reason, 'ide-active');
+});
+
 test('spawn is refused before running claude when the gate fails', () => {
   const env = sandbox();
   const r = run(env, [

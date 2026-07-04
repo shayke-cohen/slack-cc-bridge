@@ -53,8 +53,8 @@ Keep the orchestrator's own reasoning minimal — let `classify` decide what's a
 4. **New tasks** (respect `config.maxActiveSessions` — if already at cap, leave them for a later tick):
    - React 👀 (`add_reaction eyes`) on the message = picked up / working. (No ⏳ — it can't be removed and would linger.)
    - `bridge worktree-add --thread <thread>` → `bridge spawn --thread <thread> --cwd <path> --model <model> --author <AUTHOR> --channel <CHANNEL> --prompt "<text>"`.
-   - `reply_to_thread` with the spawn's **`slackText`** (Slack-formatted — NOT raw `resultText`), prefixed with `<@AUTHOR>` so you get notified. Add the terminal reaction: ✅ (`white_check_mark`) done, or ❓ (`question`) if it needs input, or ❌ (`x`) on error.
-5. **Thread turns:** react 👀 on the latest reply → single-active-driver check → `bridge resume --thread <thread> --replyTs <ts> --author <AUTHOR> --channel <CHANNEL> --prompt "<text>"` → `reply_to_thread` its **`slackText`** (prefixed `<@AUTHOR>`) → add the terminal ✅ (or ❓/❌). On `{skipped:true,reason:"ide-active"}`, post "you're driving this in VS Code — I'll mirror" and don't resume. (`classify` already **coalesces** several quick replies into one turn — one `resume`, not many — so just act on each `threadTurns` entry as-is.)
+   - `reply_to_thread` with the spawn's **`slackText`** (Slack-formatted — NOT raw `resultText`), prefixed with `<@AUTHOR>`. Add the terminal reaction: ✅ (`white_check_mark`) done, or ❓ (`question`) if it needs input, or ❌ (`x`) on error. Then **notify** (see Formatting & notifications).
+5. **Thread turns:** react 👀 on the latest reply → single-active-driver check (**skipped when `config.allowConcurrentResume` is true**) → `bridge resume --thread <thread> --replyTs <ts> --author <AUTHOR> --channel <CHANNEL> --prompt "<text>"` → `reply_to_thread` its **`slackText`** (prefixed `<@AUTHOR>`) → add the terminal ✅ (or ❓/❌) → **notify** (see Formatting & notifications). On `{skipped:true,reason:"ide-active"}`, post "you're driving this in VS Code — I'll mirror" and don't resume. (`classify` already **coalesces** several quick replies into one turn — one `resume`, not many — so just act on each `threadTurns` entry as-is.)
 6. **Mirror manual VS Code turns:** for each active thread, `bridge tail --thread <thread>` → post the returned **`slackTexts`** (prefixed `<@AUTHOR>`). (Cursors auto-advance, so `tail` only ever emits turns the bridge didn't produce.)
 7. **Advance + reschedule:** `bridge set-last-seen --ts <maxTs>`. Then `ScheduleWakeup`: `config.pollSeconds` (~45s) if this tick did anything, else `config.idlePollSeconds` (~180s) to stay cheap while idle.
 8. **Housekeeping:** run `bridge prune` (auto-closes threads idle past `threadTtlHours`, drops ancient ones — keeps state + polling bounded). **Close** a thread the moment Shayke reacts 🏁 or says "done"/"close" in it → `bridge close --thread <ts>` (the loop stops following it; a fresh `@cc` always starts a new one).
@@ -68,7 +68,10 @@ Keep the orchestrator's own reasoning minimal — let `classify` decide what's a
 ## Formatting & notifications
 
 - **Post Slack-formatted text, never raw Markdown.** Slack ignores `**`/`##`/`[]()` — it uses mrkdwn (`*bold*`, `<url|text>`, `•`). `spawn`/`resume` already return **`slackText`** and `tail` returns **`slackTexts`** (converted). Post those. For any text YOU compose, pipe it through `bridge fmt` (stdin → `{slackText}`).
-- **Notify yourself.** The monitored channel is your self-DM, so Slack doesn't badge messages "sent" to yourself. **Prefix every reply with `<@AUTHOR>`** — a self-mention breaks through as a notification. Still too quiet? Alternatives: add a Slack reminder on finish, or set `channel` to a dedicated channel / bot-DM that badges natively.
+- **Notify yourself.** The self-DM **can't badge you** — Slack posts come from *you*, and a self-mention does NOT change that (verified). So alert out-of-band, after each reply:
+  - **Desk (macOS):** `bridge notify --title "cc: <short task>" --message "<done | needs input | error>"` → a native desktop alert (immediate; only where the orchestrator runs).
+  - **Mobile:** on ❓ needs-input / ❌ error, also set a Slack reminder via the MCP `add_reminder` (text `cc: <task> — reply ready`, time `in 1 minute`, user `<AUTHOR>`) → Slackbot pushes it to your phone. Skip it on routine ✅ to avoid spam.
+  - The only *native* unread-everywhere fix is pointing `config.channel` at a dedicated channel where a real **bot token** posts — a one-time Slack-app setup, out of scope here.
 
 ## Message syntax
 
@@ -81,7 +84,9 @@ Keep the orchestrator's own reasoning minimal — let `classify` decide what's a
 Everything is set in **`config.json`** — nothing is baked into the code or this doc. Change a
 value there and the skill follows it (it reads the resolved values via `bridge config-get`).
 Keys: `channel`, `author`, `trigger`, `defaultModel`, `baseRepo`, `baseRef`, `listWorkspace`,
-`worktreeRoot`, `pollSeconds`, `idlePollSeconds`, `maxActiveSessions`, `coalesceReplies`, `threadTtlHours`.
+`worktreeRoot`, `pollSeconds`, `idlePollSeconds`, `maxActiveSessions`, `coalesceReplies`, `threadTtlHours`,
+`allowConcurrentResume` (resume even when the session is open in VS Code — JSONL is line-safe, so only risks divergent context),
+`ideActiveWindowSeconds` (how recently a VS Code session must have been touched to count as "live"; default 120).
 
 **Per-run override (skill args):** if this skill is invoked with arguments like
 `channel=<id> author=<id>` (also `baseRepo=<path>`, `listWorkspace=<path>`), `export` them as
@@ -100,6 +105,7 @@ whole pipeline stays consistent. This is how one install serves a different user
 |---|---|
 | `config-get` | resolved config (config.json + `SCCB_*` overrides) — read `channel`/`author` here |
 | `fmt` (stdin=md) | convert Markdown → Slack mrkdwn → `{slackText}` |
+| `notify --title T --message M` | native macOS desktop alert (self-DM can't notify); no-op off macOS |
 | `doctor` | validate config for a fresh install (channel/author set, baseRepo is a git repo, …) |
 | `state-get` | `lastSeenTs` + active threads (also tells you which threads to fetch replies for) |
 | `classify` (stdin=poll JSON) | gate + `@cc` + dedup → `{newTasks, threadTurns, maxTs}` |
@@ -112,7 +118,7 @@ whole pipeline stays consistent. This is how one install serves a different user
 | `prune [--maxAgeHours N]` | auto-close idle threads, drop ancient ones |
 | `guard --author U --channel C` | exit 0 iff a self message |
 
-Run `cd "$SKILL/scripts" && node --test` to verify the CLI (82 unit/integration tests).
+Run `cd "$SKILL/scripts" && node --test` to verify the CLI (87 unit/integration tests).
 
 ## Common mistakes
 

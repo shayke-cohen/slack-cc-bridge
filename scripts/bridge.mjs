@@ -199,7 +199,10 @@ async function main() {
       const entry = state.threads[flags.thread];
       if (!entry) { out({ error: 'unknown-thread', thread: flags.thread }); process.exit(4); }
 
-      if (ideActiveSession(entry.sessionId, { sessionsDir: SESSIONS_DIR })) {
+      // Single-active-driver guard — unless the user opted into concurrent resume. The transcript
+      // is line-append-safe JSONL, so this only avoids divergent context, not corruption.
+      const ideWindowMs = (config.ideActiveWindowSeconds ?? 120) * 1000;
+      if (!config.allowConcurrentResume && ideActiveSession(entry.sessionId, { sessionsDir: SESSIONS_DIR, maxAgeMs: ideWindowMs })) {
         out({ skipped: true, reason: 'ide-active', sessionId: entry.sessionId });
         process.exit(0);
       }
