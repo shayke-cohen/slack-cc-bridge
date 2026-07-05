@@ -72,6 +72,26 @@ test('coalescing merges rapid replies into one channel-tagged turn', () => {
   ]);
 });
 
+test('threadTurns excludes our own posted reply (no bot_id — user-token MCP acts as the author) via messagePrefix', () => {
+  const cfg = { ...config, messagePrefix: '[claude]', coalesceReplies: false };
+  const input = {
+    channelId: 'C_A',
+    messages: [],
+    threads: {
+      '200.000000': [
+        { user: 'UC74Z40NN', ts: '200.000000', text: '@cc root' },
+        { user: 'UC74Z40NN', ts: '207.000000', text: 'also add tests' },
+        { user: 'UC74Z40NN', ts: '208.000000', text: '[claude] <@UC74Z40NN> done, see PR' },
+      ],
+    },
+  };
+  const state = { threads: { '200.000000': { sessionId: 's1', channel: 'C_A', lastReplyTs: '206.000000' } }, lastSeen: {} };
+  const { threadTurns } = classify(input, state, cfg);
+  assert.deepEqual(threadTurns, [
+    { channel: 'C_A', thread: '200.000000', ts: '207.000000', text: 'also add tests' },
+  ]);
+});
+
 test('a thread belonging to a DIFFERENT channel is not followed in this channel', () => {
   const input = { channelId: 'C_A', messages: [], threads: { '200.000000': [{ user: 'UC74Z40NN', ts: '207.000000', text: 'x' }] } };
   const state = { threads: { '200.000000': { sessionId: 's1', channel: 'C_B', lastReplyTs: '206.000000' } }, lastSeen: {} };

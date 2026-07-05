@@ -19,6 +19,13 @@ function tsKey(ts) {
 const tsGt = (a, b) => tsKey(a) > tsKey(b);
 
 /**
+ * User-token Slack MCPs post as the real author (no `bot_id`), so our own replies would
+ * otherwise pass the self-only gate and get re-classified as new turns forever. Every post
+ * we make is prefixed with `config.messagePrefix` (see SKILL.md) — use that as the tell.
+ */
+const isOwnPost = (text, config) => !!config.messagePrefix && String(text ?? '').startsWith(config.messagePrefix);
+
+/**
  * @param {{channel: object[], threads: Record<string, object[]>}} input
  * @param {{threads: Record<string, {lastReplyTs?: string}>, lastSeenTs: string}} state
  * @param {{author: string, channel: string, trigger: string, defaultModel: string}} config
@@ -43,6 +50,7 @@ export function classify(input, state, config) {
     if (!topLevel) continue;
     if (!tsGt(msg.ts, lastSeen)) continue;
     if (!checkGate({ author: msg.user, channel: channelId, botId: msg.bot_id }, config).allowed) continue;
+    if (isOwnPost(msg.text, config)) continue;
 
     const parsed = parseTrigger(msg.text ?? '', config);
     if (!parsed.isTask) continue;
@@ -61,6 +69,7 @@ export function classify(input, state, config) {
       if (r.ts === threadTs) continue; // the root message
       if (!tsGt(r.ts, cursor)) continue;
       if (!checkGate({ author: r.user, channel: channelId, botId: r.bot_id }, config).allowed) continue;
+      if (isOwnPost(r.text, config)) continue;
       turns.push({ channel: channelId, thread: threadTs, ts: r.ts, text: r.text ?? '' });
     }
     if (!turns.length) continue;
