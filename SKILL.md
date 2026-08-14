@@ -28,6 +28,8 @@ The real work happens inside the spawned sessions (default **Opus 4.8**).
 
 `SKILL="$HOME/.claude/skills/slack-cc-bridge"` · `BRIDGE="node \"$SKILL/scripts/bridge.mjs\""` · config in `$SKILL/config.json`.
 
+Optional neighbour (step 6b): `ASK="$HOME/.claude/skills/agent-ask-user-in-slack/scripts/ask.mjs"` — the outbound half, where a headless agent asks *you* something. Everything about it is optional; if that file is absent, skip step 6b entirely.
+
 ## How sessions appear in VS Code (worktree isolation + visibility)
 
 The VS Code extension lists sessions by scanning `~/.claude/projects/<encode(open-folder)>/*.jsonl` — it's scoped to the folder you have open, and a worktree is a different folder. So `spawn` **hardlinks** each worktree session's transcript into `config.listWorkspace`'s project dir (e.g. New Mobile Arc). Result: the session shows in that folder's **Local** list, and because `claude --resume` respects the transcript's recorded cwd, opening/continuing it from the list still runs in the **isolated worktree** — isolation and visibility together. The link is automatic (in `spawn`); `worktree-rm`/`prune` remove it. Nothing extra to do in the procedure.
@@ -56,6 +58,12 @@ Keep the orchestrator's own reasoning minimal — let `classify` decide what's a
    - `reply_to_thread` with `<PREFIX> <@AUTHOR> ` + the spawn's **`slackText`** (Slack-formatted — NOT raw `resultText`). **This is the thread's first reply, so append a footer** from the spawn output: `` · session `<sessionId>` · take over: `<resumeCommand>` `` (the `cd <worktree> && claude --resume <id>` line). Add the terminal reaction: ✅ (`white_check_mark`) done, or ❓ (`question`) if it needs input, or ❌ (`x`) on error. Then **notify** (see Formatting & notifications).
 5. **Thread turns:** react 👀 on the latest reply → single-active-driver check (**skipped when `config.allowConcurrentResume` is true**) → `bridge resume --thread <thread> --replyTs <ts> --author <AUTHOR> --channel <CHANNEL> --prompt "<text>"` → `reply_to_thread` `<PREFIX> <@AUTHOR> ` + its **`slackText`** → add the terminal ✅ (or ❓/❌) → **notify** (see Formatting & notifications). On `{skipped:true,reason:"ide-active"}`, post "you're driving this in VS Code — I'll mirror" and don't resume. (`classify` already **coalesces** several quick replies into one turn — one `resume`, not many — so just act on each `threadTurns` entry as-is.)
 6. **Mirror manual VS Code turns:** for each active thread, `bridge tail --thread <thread>` → post the returned **`slackTexts`** (each prefixed `<PREFIX> <@AUTHOR> `). (Cursors auto-advance, so `tail` only ever emits turns the bridge didn't produce.)
+6b. **Wake any agent waiting on a Slack answer** — only if [`agent-ask-user-in-slack`](https://github.com/shayke-cohen/agent-ask-user-in-slack) is installed (`~/.claude/skills/agent-ask-user-in-slack/scripts/ask.mjs`); skip silently otherwise. That skill's headless agents poll on an escalating backoff capped around 2 minutes, because they cannot watch Slack — you can, every tick, and you are the cheap model. So do the looking for them:
+   - `node "$ASK" status` → each run with a `threadTs` and an ask whose `status` is `pending`.
+   - For each, `get_thread_replies(<its channel>, <threadTs>)` → is there a message from `AUTHOR` newer than that ask's `cursor`?
+   - If **any** has one: `bridge kick-asks` (one file touch; the `ALL` sentinel wakes every waiting ask at once).
+   **Only kick when an answer actually exists.** Kicking every tick unconditionally would make waiting agents poll on *your* 45s interval instead of their own 120s cap — more expensive, not less, and paid by the expensive model rather than you.
+
 7. **Advance + reschedule:** `bridge set-last-seen --channel <CHANNEL> --ts <maxTs>` (per channel). After all channels, `ScheduleWakeup`: `config.pollSeconds` (~45s) if this tick did anything, else `config.idlePollSeconds` (~180s) to stay cheap while idle.
 8. **Housekeeping:** run `bridge prune` (auto-closes threads idle past `threadTtlHours`, drops ancient ones — keeps state + polling bounded). **Close** a thread the moment Shayke reacts 🏁 or says "done"/"close" in it → `bridge close --thread <ts>` (the loop stops following it; a fresh `@cc` always starts a new one).
 
@@ -119,8 +127,9 @@ whole pipeline stays consistent. This is how one install serves a different user
 | `close --thread TS` | stop following a finished thread |
 | `prune [--maxAgeHours N]` | auto-close idle threads, drop ancient ones |
 | `guard --author U --channel C` | exit 0 iff a self message |
+| `kick-asks [--kick-dir DIR]` | wake agents waiting in `agent-ask-user-in-slack` (touches its `ALL` sentinel; no-op if not installed, and needs no bridge config) |
 
-Run `cd "$SKILL/scripts" && node --test` to verify the CLI (92 unit/integration tests).
+Run `cd "$SKILL/scripts" && node --test` to verify the CLI (99 unit/integration tests).
 
 ## Common mistakes
 

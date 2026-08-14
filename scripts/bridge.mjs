@@ -17,6 +17,7 @@
  *   tail         --thread TS
  *   state-get
  *   set-last-seen --ts TS
+ *   kick-asks    [--kick-dir DIR]
  *
  * Config/state paths are overridable via SCCB_CONFIG / SCCB_STATE (used by tests).
  */
@@ -37,6 +38,7 @@ import { ideActiveSession } from './lib/driver.mjs';
 import { runDoctor } from './lib/doctor.mjs';
 import { mdToSlack } from './lib/slackfmt.mjs';
 import { notifyDesktop } from './lib/notify.mjs';
+import { kickWaitingAsks } from './lib/askkick.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CONFIG_PATH = process.env.SCCB_CONFIG || path.join(HERE, '..', 'config.json');
@@ -105,6 +107,15 @@ async function main() {
     let cfg = null;
     try { cfg = loadConfig(); } catch { /* missing or invalid config */ }
     out(runDoctor(cfg));
+    return;
+  }
+
+  // `kick-asks` touches another skill's kick file and reads nothing of ours, so it must not need a
+  // configured bridge — anything on the machine should be able to wake a waiting agent.
+  if (cmd === 'kick-asks') {
+    let askKickDir;
+    try { askKickDir = loadConfig().askKickDir; } catch { /* config optional here */ }
+    out({ ok: true, ...kickWaitingAsks({ kickDir: flags['kick-dir'] || askKickDir }) });
     return;
   }
 

@@ -16,5 +16,6 @@
   "allowConcurrentResume": false,
   "ideActiveWindowSeconds": 120,
   "messagePrefix": "[claude]",
-  "sessionTimeoutMinutes": 30
+  "sessionTimeoutMinutes": 30,
+  "askKickDir": ""
 }
