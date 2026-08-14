@@ -47,5 +47,5 @@ Then type `@cc <task>` in the monitored Slack self-DM.
   (`get_channel_history`, `get_thread_replies`, `reply_to_thread`, `post_message`, `add_reaction`).
   The gate/logic don't care — they live in `bridge.mjs`.
 - **Config is the only per-user state** — `config.json` (git-ignored). Everything else is code.
-- **Verify any change:** `cd scripts && node --test` (71 tests). `node scripts/bridge.mjs doctor`
+- **Verify any change:** `cd scripts && node --test` (99 tests). `node scripts/bridge.mjs doctor`
   validates a config. Never commit `config.json`.
